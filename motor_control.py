@@ -1,45 +1,79 @@
 import RPi.GPIO as GPIO
 import time
 
-PUL = 18
-DIR = 24
-
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(PUL, GPIO.OUT)
-GPIO.setup(DIR, GPIO.OUT)
-
-def move_with_velocity(steps, direction, rpm):
-    # Convert RPM to a pulse delay
-    # Formula: 1 / (((Steps_Per_Rev * RPM) / 60) * 2)
-    steps_per_rev = 200 # Standard for NEMA 17 at Full Step
-    steps_per_second = (steps_per_rev * rpm) / 60
-    delay = 1 / (steps_per_second * 2)
-    
-    GPIO.output(DIR, direction)
-    
-    for _ in range(steps):
-        GPIO.output(PUL, GPIO.HIGH)
-        time.sleep(delay)
-        GPIO.output(PUL, GPIO.LOW)
-        time.sleep(delay)
-
-try:
-    # Adjust these variables to control your bot's "feel"
-    target_steps = 3000  # 180 degrees (π radians)
-    speed_rpm = 300      # 1 rotation per second
-    
-    print(f"Oscillating at {speed_rpm} RPM. Press Ctrl+C to stop.")
-    
-    while True:
-        # Move to PI (180 degrees)
-        move_with_velocity(target_steps, 1, speed_rpm)
-        time.sleep(0.5) # Pause to let the chess piece settle
+class ChessBotHardware:
+    def __init__(self):
+        # --- GPIO PIN CONFIGURATION ---
+        self.PUL1, self.DIR1 = 18, 24
+        self.PUL2, self.DIR2 = 17, 27
         
-        # Move back to 0
-        move_with_velocity(target_steps, 0, speed_rpm)
-        time.sleep(0.5)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        GPIO.setup([self.PUL1, self.DIR1, self.PUL2, self.DIR2], GPIO.OUT)
+        GPIO.output([self.PUL1, self.PUL2], GPIO.LOW)
 
-except KeyboardInterrupt:
-    print("\nStopping motor safely...")
-finally:
-    GPIO.cleanup()
+    def _pulse_motors(self, motor1_dir, motor2_dir, steps, rpm):
+        steps_per_rev = 200
+        steps_per_second = (steps_per_rev * rpm) / 60
+        delay = 1 / (steps_per_second * 2)
+        
+        GPIO.output(self.DIR1, motor1_dir)
+        GPIO.output(self.DIR2, motor2_dir)
+        
+        for _ in range(steps):
+            GPIO.output(self.PUL1, GPIO.HIGH)
+            GPIO.output(self.PUL2, GPIO.HIGH)
+            time.sleep(delay)
+            GPIO.output(self.PUL1, GPIO.LOW)
+            GPIO.output(self.PUL2, GPIO.LOW)
+            time.sleep(delay)
+
+    def move_x(self, steps, rpm=60, forward=True):
+        direction = GPIO.HIGH if forward else GPIO.LOW
+        self._pulse_motors(direction, direction, steps, rpm)
+
+    def move_y(self, steps, rpm=60, forward=True):
+        dir1 = GPIO.HIGH if forward else GPIO.LOW
+        dir2 = GPIO.LOW if forward else GPIO.HIGH
+        self._pulse_motors(dir1, dir2, steps, rpm)
+
+    def cleanup(self):
+        GPIO.cleanup()
+
+# --- Infinite Loop Execution ---
+if __name__ == "__main__":
+    bot = ChessBotHardware()
+    
+    # Configuration for the test
+    TEST_STEPS = 3000  # Distance to move
+    TEST_RPM = 300    # Speed
+    
+    try:
+        print(f"Starting infinite oscillation at {TEST_RPM} RPM...")
+        print("Press Ctrl+C to stop the motors.")
+        
+        while True:
+            # Step A: Move X Forward
+            print("Moving X Forward...")
+            bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=True)
+            time.sleep(0.5) # Short pause to prevent mechanical stress
+            
+            # Step B: Move X Backward
+            print("Moving X Backward...")
+            bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=False)
+            time.sleep(0.5)
+            
+            # Step C: Move Y Forward
+            print("Moving Y Forward...")
+            bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=True)
+            time.sleep(0.5)
+            
+            # Step D: Move Y Backward
+            print("Moving Y Backward...")
+            bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=False)
+            time.sleep(0.5)
+
+    except KeyboardInterrupt:
+        print("\nStopping oscillation and cleaning up...")
+    finally:
+        bot.cleanup()
