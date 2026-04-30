@@ -11,6 +11,8 @@ def main():
         return
 
     move_history = []
+
+
     
     # 1. SETUP VIRTUAL BOARD
     full_start = {sq: 0 for sq in sensors.square_map}

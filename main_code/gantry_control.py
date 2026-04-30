@@ -4,13 +4,17 @@ from limit_switch import ChessBotHardware
 
 class GantryControl:
     def __init__(self):
+        self.magnet_status = False
         self.hw = ChessBotHardware()
         
         # --- THEORETICAL BOARD CONSTANTS ---
-        self.SQUARE_SIZE_MM = 45.0
-        self.STEPS_PER_MM = 132.0     
-        self.A1_OFFSET_X = 50.0     
-        self.A1_OFFSET_Y = 50.0     
+        self.SQUARE_SIZE_MM = 45
+        self.STEPS_PER_MM = 130     
+        self.H1_OFFSET_X_MM = 50
+        self.H1_OFFSET_Y_MM = 50
+
+        self.H1_OFFSET_X = self.H1_OFFSET_X_MM * self.STEPS_PER_MM     
+        self.H1_OFFSET_Y = self.H1_OFFSET_Y_MM * self.STEPS_PER_MM     
         
         self.curr_x_steps = 0
         self.curr_y_steps = 0
@@ -21,19 +25,42 @@ class GantryControl:
         self.hw.calibrate_x(homing_forward=True)
         time.sleep(0.5)
         self.hw.calibrate_y(homing_forward=False)
+        time.sleep(0.5)
         
+        # Move to corner of A1
+        self.execute_steps(self.H1_OFFSET_X,self.H1_OFFSET_Y, rpm=1000)
+        time.sleep(0.5)
+
         # Reset internal tracking to zero
         self.curr_x_steps = 0
         self.curr_y_steps = 0
         print("System ready at 0,0 (Home).")
 
+    def corner_center(self, to_center = True):
+        if to_center:
+            self.execute_steps(int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*.5), int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*.5))
+        else:
+            self.execute_steps(int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*-.5), int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*-.5))
+
+    def pickup_sweep(self):
+        print("WIP: this will do a spiral in the square to ensure we pick up the piece")
+
+    def electromagnet(self):
+        print("WIP")
+        if self.magnet_status:
+            print("turning magnet off")
+            self.magnet_status = False
+        else:
+            print("turning magnet on")
+            self.magnet_status = True
+
     def move_to_square(self, square):
         """Translates 'e4' to steps and calls the motor execution."""
-        row = ord(square[0].lower()) - ord('a') 
+        row = - ord(square[0].lower()) + ord('h') 
         col = int(square[1]) - 1                
 
-        target_x_steps = int((self.A1_OFFSET_X + (col * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
-        target_y_steps = int((self.A1_OFFSET_Y + (row * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
+        target_x_steps = int(((col * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
+        target_y_steps = int(((row * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
 
         diff_x = target_x_steps - self.curr_x_steps
         diff_y = target_y_steps - self.curr_y_steps
@@ -45,7 +72,7 @@ class GantryControl:
         self.curr_y_steps = target_y_steps
         print(f"Magnet arrived at {square}")
 
-    def execute_steps(self, dx, dy, rpm=1500):
+    def execute_steps(self, dx, dy, rpm=4000):
         """Moves X completely, then Y completely. Polarities flipped for free-space movement."""
         
         delay = 1 / (((200 * rpm) / 60) * 2)

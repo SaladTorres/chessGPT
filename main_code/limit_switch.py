@@ -45,7 +45,7 @@ class ChessBotHardware:
         dir2 = GPIO.LOW if forward else GPIO.HIGH
         self._pulse_motors(dir1, dir2, steps, rpm)
 
-    def calibrate_x(self, search_rpm=1000, backoff_rpm=30, homing_forward=True):
+    def calibrate_x(self, search_rpm=2500, backoff_rpm=200, homing_forward=True):
         """
         Moves the X axis until the X limit switch is hit, then slowly backs away.
         """
@@ -87,7 +87,7 @@ class ChessBotHardware:
             
         print("calibrated at X = 0")
 
-    def calibrate_y(self, search_rpm=1000, backoff_rpm=30, homing_forward=True):
+    def calibrate_y(self, search_rpm=2500, backoff_rpm=200, homing_forward=True):
         """
         Moves the Y axis until the Y limit switch is hit, then slowly backs away.
         """
