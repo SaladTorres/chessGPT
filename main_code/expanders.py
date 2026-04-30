@@ -52,11 +52,15 @@ class ChessSensors:
         print("\n--- LIVE SENSOR GRID (1=PIECE, 0=EMPTY) ---")
         try:
             while True:
-                results = self.get_raw_states()
-                # Group into blocks of 16 for display
-                display = " | ".join(["".join(results[i:i+16]) for i in range(0, 80, 16)])
-                print(f"\rBoard (23|24|25|26|27): {display}", end="", flush=True)
-                time.sleep(0.05)
+                try:
+                    results = self.get_raw_states()
+                    # Group into blocks of 16 for display
+                    display = " | ".join(["".join(results[i:i+16]) for i in range(0, 80, 16)])
+                    print(f"\rBoard (23|24|25|26|27): {display}", end="", flush=True)
+                    time.sleep(0.05)
+                except OSError:
+                    print(f"  ! I2C Communication dropped.")
+                    continue 
         except KeyboardInterrupt:
             print("\nDashboard stopped.")
 
