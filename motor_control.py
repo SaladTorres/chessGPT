@@ -46,33 +46,39 @@ if __name__ == "__main__":
     
     # Configuration for the test
     TEST_STEPS = 7000  # Distance to move
-    TEST_RPM = 1200    # Speed
+    TEST_RPM = 600    # Speed
     
     try:
         print(f"Starting infinite oscillation at {TEST_RPM} RPM...")
         print("Press Ctrl+C to stop the motors.")
         
         while True:
+            
             # Step A: Move X Forward
-            print("Moving X Forward...")
-            bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=True)
+            bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=False)
             time.sleep(0.5) # Short pause to prevent mechanical stress
+            bot.move_y(TEST_STEPS, rpm=TEST_RPM,forward=True)
+            time.sleep(0.5)
             
             # Step B: Move X Backward
-            print("Moving X Backward...")
-            bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=False)
-            time.sleep(0.5)
+           # print("Moving X Backward...")
+           # bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=False)
+            # time.sleep(0.5)
             
             # Step C: Move Y Forward
-            print("Moving Y Forward...")
-            bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=True)
-            time.sleep(0.5)
+          #  print("Moving Y Forward...")
+         #   bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=True)
+          #  time.sleep(0.5)
             
             # Step D: Move Y Backward
-            print("Moving Y Backward...")
-            bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=False)
-            time.sleep(0.5)
-
+           # print("Moving Y Backward...")
+            #bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=False)
+           # time.sleep(0.5)
+            
+        #    bot.move_y(TEST_STEPS, rpm=TEST_RPM, forward=False)
+         #   time.sleep(0.5)
+          #  bot.move_x(TEST_STEPS, rpm=TEST_RPM, forward=True)
+           # time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nStopping oscillation and cleaning up...")
     finally:
