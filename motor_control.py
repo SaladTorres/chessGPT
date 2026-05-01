@@ -45,7 +45,7 @@ if __name__ == "__main__":
     bot = ChessBotHardware()
     
     # Configuration for the test
-    TEST_STEPS = 7000  # Distance to move
+    TEST_STEPS = 1000  # Distance to move
     TEST_RPM = 600    # Speed
     
     try:

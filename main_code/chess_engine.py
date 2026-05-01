@@ -4,160 +4,174 @@ from gantry_control import GantryControl
 
 class ChessEngine:
     def __init__(self):
-        # --- GANTRY SETUP ---
         try:
             self.controller = GantryControl()
             self.controller.home_system()
         except Exception as e:
             print(f"Failed to initialize gantry controller. Error: {e}")
             return
-        # --- ENGINE SETUP ---
+            
         STOCKFISH_PATH = "stockfish"
         
         try:
-            # Initialize the pip stockfish wrapper
             self.engine = Stockfish(path=STOCKFISH_PATH)
-            self.engine.set_skill_level(10) # Set difficulty (0-20)
+            self.engine.set_skill_level(10) 
             print("Stockfish engine connected successfully!")
         except Exception as e:
             print(f"Failed to find Stockfish executable. Error: {e}")
             return
 
-        # Initialize the digital board referee
         self.board = chess.Board()
-        capture_square_index = 1
 
-    def move_to_captured(self, capture_square, capture_index):
-        """
-        Moves the gantry to pick up a captured piece from its square and drop it in the graveyard.
-        """
+    def get_move_from_events(self, lifts, places):
+        """Translates raw physical board changes into a legal chess move using strict set matching."""
+        possible_moves = []
+        for move in self.board.legal_moves:
+            expected_lifts = set()
+            expected_places = set()
+            
+            start = chess.square_name(move.from_square)
+            end = chess.square_name(move.to_square)
+            
+            # Base logic
+            expected_lifts.add(start)
+            expected_places.add(end)
+            
+            # 1. Castling Logic
+            if self.board.is_castling(move):
+                if end == "g1":   # White Kingside
+                    expected_lifts.add("h1")
+                    expected_places.add("f1")
+                elif end == "c1": # White Queenside
+                    expected_lifts.add("a1")
+                    expected_places.add("d1")
+                elif end == "g8": # Black Kingside
+                    expected_lifts.add("h8")
+                    expected_places.add("f8")
+                elif end == "c8": # Black Queenside
+                    expected_lifts.add("a8")
+                    expected_places.add("d8")
+                    
+            # 2. En Passant Logic
+            elif self.board.is_en_passant(move):
+                ep_file = chess.square_file(move.to_square)
+                ep_rank = chess.square_rank(move.from_square)
+                victim_sq = chess.square_name(chess.square(ep_file, ep_rank))
+                expected_lifts.add(victim_sq)
+                
+            # 3. Normal Capture Logic
+            elif self.board.is_capture(move):
+                expected_lifts.add(end)
+
+            # Match exact lifts and places
+            if lifts == expected_lifts and places == expected_places:
+                possible_moves.append(move)
+                
+        if len(possible_moves) == 1:
+            return possible_moves[0].uci()
+        elif len(possible_moves) > 1:
+            # Handle Promotions
+            for m in possible_moves:
+                if m.promotion == chess.QUEEN:
+                    return m.uci()
+            return possible_moves[0].uci()
+        else:
+            raise ValueError("Board layout does not exactly match any legal move.")
+
+    def process_human_move(self, uci_str):
+        move = chess.Move.from_uci(uci_str)
+        san_notation = self.board.san(move)
+        self.board.push(move)
+        return san_notation
+
+    def play_robot_turn(self):
+        self.engine.set_fen_position(self.board.fen())
+        best_move_uci = self.engine.get_best_move()
+        sf_move = chess.Move.from_uci(best_move_uci)
+        
+        start_square = chess.square_name(sf_move.from_square)
+        end_square = chess.square_name(sf_move.to_square)
+        san_notation = self.board.san(sf_move)
+        
+        print(f"\n--- EXECUTING GANTRY SEQUENCE: {san_notation} ---")
+
+        # A. Handle Castling 
+        if self.board.is_castling(sf_move):
+            if end_square == "g1":
+                rook_start, rook_end = "h1", "f1"
+            elif end_square == "c1":
+                rook_start, rook_end = "a1", "d1"
+            elif end_square == "g8":
+                rook_start, rook_end = "h8", "f8"
+            elif end_square == "c8":
+                rook_start, rook_end = "a8", "d8"
+                
+            self.move_to_pos(start_square, end_square)
+            self.move_to_pos(rook_start, rook_end)
+            
+        else:
+            # B. Handle Captures
+            if self.board.is_capture(sf_move):
+                if self.board.is_en_passant(sf_move):
+                    ep_file = chess.square_file(sf_move.to_square)
+                    ep_rank = chess.square_rank(sf_move.from_square)
+                    capture_square = chess.square_name(chess.square(ep_file, ep_rank))
+                else:
+                    capture_square = end_square
+                
+                self.move_to_captured(capture_square)
+
+            # C. Move Main Piece
+            self.move_to_pos(start_square, end_square)
+            
+        self.calibrate()
+        self.board.push(sf_move)
+        return best_move_uci, san_notation
+
+    # --- GANTRY MOVEMENT FUNCTIONS ---
+
+    def move_to_captured(self, capture_square):
         try:
-            print(f"[GANTRY] Moving captured piece on {capture_square} to capture square {capture_index}")
+            print(f"[GANTRY] Removing captured piece from {capture_square} to drop zone (0,0)")
+            # 1. Edge-travel to capture square, dive center, grab, back to edge
             self.controller.move_to_square(capture_square)
             self.controller.corner_center(to_center=True)
             self.controller.electromagnet()
             self.controller.corner_center(to_center=False)
-            self.controller.move_to_square("h8") #change with capture index squares
+            
+            # 2. Edge-travel to (0,0) drop zone, dive center, drop, back to edge
+            self.controller.move_to_square("a1", True) 
             self.controller.corner_center(to_center=True)
-            self.controller.electromagnet()
+            self.controller.electromagnet() 
             self.controller.corner_center(to_center=False)
         except Exception as e:
             print(f"Failed. Error: {e}")
-            return
 
     def move_to_pos(self, start_square, end_square):
-        """
-        Moves the gantry to pick up the active piece and move it to its new square.
-        """
         try:
             print(f"[GANTRY] Moving piece from {start_square} to {end_square}")
+            # 1. Edge-travel to start, dive center, grab, back to edge
             self.controller.move_to_square(start_square)
             self.controller.corner_center(to_center=True)
             self.controller.electromagnet()
             self.controller.corner_center(to_center=False)
+            
+            # 2. Edge-travel to end, dive center, drop, back to edge
             self.controller.move_to_square(end_square)
             self.controller.corner_center(to_center=True)
             self.controller.electromagnet()
             self.controller.corner_center(to_center=False)
         except Exception as e:
             print(f"Failed. Error: {e}")
-            return
 
     def calibrate(self):
-        """
-        Runs the physical homing sequence.
-        """
-        
         try:    
             self.controller.home_system()
-            print("[GANTRY] Calibrating gantry to X=0, Y=0...")
         except Exception as e:
             print(f"Failed. Error: {e}")
-            return
-
-    # --- MAIN CHESS LOGIC ---
-
-    def play_game(self):
-
-        print("\n--- NEW GAME STARTED ---")
-        print(self.board)
-        print("------------------------\n")
-
+            
+    def shutdown(self):
         try:
-            while not self.board.is_game_over():
-                # 1. PLAYER TURN (White)
-                user_move_str = input("Enter your move (e.g., e2e4, Nf3) or 'q' to quit: ")
-                
-                if user_move_str.lower() == 'q':
-                    break
-                    
-                try:
-                    # The chess library safely parses notation and updates the digital board
-                    user_move = self.board.parse_san(user_move_str)
-                    self.board.push(user_move)
-                except ValueError:
-                    print("Invalid move. Try again.")
-                    continue
-
-                print("\nBoard after your move:")
-                print(self.board)
-                print("-" * 30)
-
-                if self.board.is_game_over():
-                    break
-
-                # 2. STOCKFISH TURN (Black)
-                print("\nStockfish is thinking...")
-                
-                # Sync the stockfish library with our digital board referee
-                self.engine.set_fen_position(self.board.fen())
-                
-                # Ask the stockfish pip library for the best move string (e.g., "d5e4")
-                best_move_uci = self.engine.get_best_move()
-                sf_move = chess.Move.from_uci(best_move_uci)
-                
-                # Extract clean start/end coordinates for the main moving piece
-                start_square = chess.square_name(sf_move.from_square)
-                end_square = chess.square_name(sf_move.to_square)
-
-                print(f"\nStockfish plays: {self.board.san(sf_move)} ({start_square} to {end_square})")
-                print("--- EXECUTING GANTRY SEQUENCE ---")
-
-                # A. Check for Captures using the digital board referee
-                if self.board.is_capture(sf_move):
-                    if self.board.is_en_passant(sf_move):
-                        # In En Passant, the captured pawn is on the same file as the destination square,
-                        # but on the same rank as the starting square!
-                        ep_file = chess.square_file(sf_move.to_square)
-                        ep_rank = chess.square_rank(sf_move.from_square)
-                        capture_square = chess.square_name(chess.square(ep_file, ep_rank))
-                    else:
-                        # Normal capture: the piece being taken is sitting on the destination square
-                        capture_square = end_square
-                    
-                    # Execute Capture Placeholder
-                    self.move_to_captured(capture_square, capture_square_index)
-                    capture_square_index += 1
-
-                # B. Move the main piece Placeholder
-                self.move_to_pos(start_square, end_square)
-                
-                # C. Calibrate Placeholder
-                self.calibrate()
-
-                print("---------------------------------")
-                
-                # Finally, update the digital board referee with Stockfish's move
-                self.board.push(sf_move)
-                print("\nBoard after Stockfish:")
-                print(self.board)
-                print("-" * 30)
-
-        except KeyboardInterrupt:
-            print("\nGame aborted.")
-        finally:
-            print("Game closed.")
-
-if __name__ == "__main__":
-    engine = ChessEngine()
-    engine.play_game()
+            self.controller.electromagnet_cleanup()
+        except:
+            pass

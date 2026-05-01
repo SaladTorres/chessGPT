@@ -4,14 +4,31 @@ from limit_switch import ChessBotHardware
 
 class GantryControl:
     def __init__(self):
-        self.magnet_status = False
         self.hw = ChessBotHardware()
+
+        try:
+            import RPi.GPIO as GPIO
+            self.PI_MODE = True
+        except ImportError:
+            # This allows you to keep testing on your Windows PC without crashing!
+            self.PI_MODE = False
+            print("[WARNING] RPi.GPIO not found. Running in PC Simulation Mode.")
+
+        self.MAGNET_PIN = 21
+        self.magnet_status = False
+        
+        if self.PI_MODE:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(self.MAGNET_PIN, GPIO.OUT)
+            # Ensure it starts in the OFF state
+            GPIO.output(self.MAGNET_PIN, GPIO.LOW)
         
         # --- THEORETICAL BOARD CONSTANTS ---
         self.SQUARE_SIZE_MM = 45
-        self.STEPS_PER_MM = 130     
-        self.H1_OFFSET_X_MM = 50
-        self.H1_OFFSET_Y_MM = 50
+        self.STEPS_PER_MM = 133     
+        self.H1_OFFSET_X_MM = 0
+        self.H1_OFFSET_Y_MM = 30
 
         self.H1_OFFSET_X = self.H1_OFFSET_X_MM * self.STEPS_PER_MM     
         self.H1_OFFSET_Y = self.H1_OFFSET_Y_MM * self.STEPS_PER_MM     
@@ -46,21 +63,35 @@ class GantryControl:
         print("WIP: this will do a spiral in the square to ensure we pick up the piece")
 
     def electromagnet(self):
-        print("WIP")
+        """Toggles the electromagnet ON or OFF based on current state."""
         if self.magnet_status:
-            print("turning magnet off")
+            print("[HARDWARE] Turning magnet OFF (Pin LOW)")
+            if self.PI_MODE:
+                GPIO.output(self.MAGNET_PIN, GPIO.LOW)
             self.magnet_status = False
         else:
-            print("turning magnet on")
+            print("[HARDWARE] Turning magnet ON (Pin HIGH)")
+            if self.PI_MODE:
+                GPIO.output(self.MAGNET_PIN, GPIO.HIGH)
             self.magnet_status = True
 
-    def move_to_square(self, square):
+    def electromagnet_cleanup(self):
+        """Safely releases the GPIO pins when the program closes."""
+        if self.PI_MODE:
+            GPIO.output(self.MAGNET_PIN, GPIO.LOW) # Safety shutoff
+            GPIO.cleanup()
+
+    def move_to_square(self, square, stockfish_capture = False):
         """Translates 'e4' to steps and calls the motor execution."""
         row = - ord(square[0].lower()) + ord('h') 
         col = int(square[1]) - 1                
 
         target_x_steps = int(((col * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
         target_y_steps = int(((row * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
+
+        if stockfish_capture:
+            target_x_steps = 0
+            target_y_steps = 0
 
         diff_x = target_x_steps - self.curr_x_steps
         diff_y = target_y_steps - self.curr_y_steps
