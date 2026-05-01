@@ -6,7 +6,7 @@ class ChessBotHardware:
         # --- GPIO PIN CONFIGURATION ---
         self.PUL1, self.DIR1 = 18, 24
         self.PUL2, self.DIR2 = 17, 27
-        self.LIMIT_X = 26 # X-axis Limit switch pin
+        self.LIMIT_X = 6 # X-axis Limit switch pin
         self.LIMIT_Y = 19 # Y-axis Limit switch pin (Change this to your actual pin)
         
         GPIO.setmode(GPIO.BCM)
