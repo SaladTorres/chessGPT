@@ -26,12 +26,13 @@ class GantryControl:
         
         # --- THEORETICAL BOARD CONSTANTS ---
         self.SQUARE_SIZE_MM = 45
-        self.STEPS_PER_MM = 133     
-        self.H1_OFFSET_X_MM = 0
-        self.H1_OFFSET_Y_MM = 30
+        self.STEPS_PER_MM_Y = 134
+        self.STEPS_PER_MM_X = 135     
+        self.H1_OFFSET_X_MM = 27
+        self.H1_OFFSET_Y_MM = 18
 
-        self.H1_OFFSET_X = self.H1_OFFSET_X_MM * self.STEPS_PER_MM     
-        self.H1_OFFSET_Y = self.H1_OFFSET_Y_MM * self.STEPS_PER_MM     
+        self.H1_OFFSET_X = self.H1_OFFSET_X_MM * self.STEPS_PER_MM_X     
+        self.H1_OFFSET_Y = self.H1_OFFSET_Y_MM * self.STEPS_PER_MM_Y    
         
         self.curr_x_steps = 0
         self.curr_y_steps = 0
@@ -55,9 +56,9 @@ class GantryControl:
 
     def corner_center(self, to_center = True):
         if to_center:
-            self.execute_steps(int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*.5), int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*.5))
+            self.execute_steps(int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM_X*.52), int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM_Y*.5))
         else:
-            self.execute_steps(int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*-.5), int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM*-.5))
+            self.execute_steps(int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM_X*-.52), int(self.SQUARE_SIZE_MM*self.STEPS_PER_MM_Y*-.5))
 
     def pickup_sweep(self):
         print("WIP: this will do a spiral in the square to ensure we pick up the piece")
@@ -86,12 +87,12 @@ class GantryControl:
         row = - ord(square[0].lower()) + ord('h') 
         col = int(square[1]) - 1                
 
-        target_x_steps = int(((col * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
-        target_y_steps = int(((row * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM)
+        target_x_steps = int(((col * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM_X)
+        target_y_steps = int(((row * self.SQUARE_SIZE_MM)) * self.STEPS_PER_MM_Y)
 
         if stockfish_capture:
-            target_x_steps = 0
-            target_y_steps = 0
+            target_x_steps = -self.H1_OFFSET_X
+            target_y_steps = -self.H1_OFFSET_Y
 
         diff_x = target_x_steps - self.curr_x_steps
         diff_y = target_y_steps - self.curr_y_steps
